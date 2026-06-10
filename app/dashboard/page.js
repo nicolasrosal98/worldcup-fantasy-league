@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getDb } from '../../lib/db';
+import { getSql } from '../../lib/db';
 import { getSessionUser } from '../../lib/auth';
 import Nav from '../Nav';
 import MatchCard from './MatchCard';
@@ -7,13 +7,13 @@ import WinnerPick from './WinnerPick';
 
 export const dynamic = 'force-dynamic';
 
-function computeStreak(db, userId) {
-  const days = db
-    .prepare(
-      `SELECT DISTINCT date(updated_at) AS d FROM predictions WHERE user_id = ? ORDER BY d DESC`
-    )
-    .all(userId)
-    .map((r) => r.d);
+async function computeStreak(sql, userId) {
+  const days = (
+    await sql`
+      SELECT DISTINCT left(updated_at, 10) AS d FROM predictions
+      WHERE user_id = ${userId} ORDER BY d DESC
+    `
+  ).map((r) => r.d);
   let streak = 0;
   const today = new Date();
   for (let i = 0; ; i++) {
@@ -27,13 +27,13 @@ function computeStreak(db, userId) {
   return streak;
 }
 
-export default function Dashboard() {
-  const user = getSessionUser();
+export default async function Dashboard() {
+  const user = await getSessionUser();
   if (!user) redirect('/');
 
-  const db = getDb();
-  const matches = db.prepare('SELECT * FROM matches ORDER BY kickoff').all();
-  const preds = db.prepare('SELECT * FROM predictions WHERE user_id = ?').all(user.id);
+  const sql = getSql();
+  const matches = await sql`SELECT * FROM matches ORDER BY kickoff`;
+  const preds = await sql`SELECT * FROM predictions WHERE user_id = ${user.id}`;
   const predByMatch = Object.fromEntries(preds.map((p) => [p.match_id, p]));
 
   const now = new Date();
@@ -48,7 +48,7 @@ export default function Dashboard() {
       matches.find((m) => m.id === p.match_id)?.home_score === null
   );
 
-  const streak = computeStreak(db, user.id);
+  const streak = await computeStreak(sql, user.id);
   const tournamentStarted = matches.length > 0 && new Date(matches[0].kickoff) <= now;
   const teams = [...new Set(matches.flatMap((m) => [m.home, m.away]))].sort();
 

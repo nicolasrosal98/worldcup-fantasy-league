@@ -1,7 +1,7 @@
 # 🏆 Laslo League — World Cup 2026 Fantasy
 
 A private, password-gated fantasy prediction league for the 2026 World Cup,
-built with Next.js (App Router) and SQLite.
+built with Next.js (App Router) and Supabase Postgres.
 
 ## How it works
 
@@ -41,12 +41,15 @@ there as the bracket fills in.
 
 ```bash
 npm install
-npm run dev   # http://localhost:3000
+cp .env.example .env.local   # fill in DATABASE_URL
+npm run dev                   # http://localhost:3000
 ```
 
-Config via env vars (all optional): `LEAGUE_PASSWORD`, `ADMIN_PASSWORD`,
-`SESSION_SECRET`, `DATA_DIR` (where `league.db` lives).
+Storage is a persistent Postgres database on Supabase (project
+`worldcup-fantasy-league`). Set `DATABASE_URL` to the connection string from
+the Supabase dashboard (Connect → use the transaction pooler URI on
+serverless hosts like Vercel). The schema lives in `supabase/migrations/`
+and is already applied; the opening-week fixtures are seeded in the DB.
 
-> Note: storage is SQLite on disk, so host it somewhere with a persistent
-> filesystem (a small VPS, Fly.io volume, Railway, etc.). Serverless hosts
-> like Vercel won't persist the database between deploys.
+Other env vars (optional): `LEAGUE_PASSWORD`, `ADMIN_PASSWORD`,
+`SESSION_SECRET`.

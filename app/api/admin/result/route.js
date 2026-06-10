@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '../../../../lib/db';
+import { getSql } from '../../../../lib/db';
 import { isAdmin } from '../../../../lib/auth';
 import { scoreMatchPrediction } from '../../../../lib/scoring';
 
@@ -11,22 +11,22 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Invalid score' }, { status: 400 });
   }
 
-  const db = getDb();
-  const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(match_id);
+  const sql = getSql();
+  const [match] = await sql`SELECT * FROM matches WHERE id = ${Number(match_id) || 0}`;
   if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
 
   const notes = JSON.stringify({ first_goal_half: first_goal_half || null, info: info || '' });
   const scorersJson = JSON.stringify(Array.isArray(scorers) ? scorers : []);
 
-  db.prepare(
-    'UPDATE matches SET home_score = ?, away_score = ?, scorers = ?, notes = ? WHERE id = ?'
-  ).run(home_score, away_score, scorersJson, notes, match_id);
+  await sql`
+    UPDATE matches SET home_score = ${home_score}, away_score = ${away_score},
+      scorers = ${scorersJson}, notes = ${notes} WHERE id = ${match.id}
+  `;
 
-  const updated = db.prepare('SELECT * FROM matches WHERE id = ?').get(match_id);
-  const preds = db.prepare('SELECT * FROM predictions WHERE match_id = ?').all(match_id);
-  const setPts = db.prepare('UPDATE predictions SET points = ? WHERE id = ?');
+  const [updated] = await sql`SELECT * FROM matches WHERE id = ${match.id}`;
+  const preds = await sql`SELECT * FROM predictions WHERE match_id = ${match.id}`;
   for (const p of preds) {
-    setPts.run(scoreMatchPrediction(p, updated), p.id);
+    await sql`UPDATE predictions SET points = ${scoreMatchPrediction(p, updated)} WHERE id = ${p.id}`;
   }
 
   return NextResponse.json({ ok: true, rescored: preds.length });

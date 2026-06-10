@@ -1,31 +1,32 @@
 import { redirect } from 'next/navigation';
-import { getDb } from '../../lib/db';
+import { getSql } from '../../lib/db';
 import { getSessionUser } from '../../lib/auth';
 import { WINNER_PICK_POINTS } from '../../lib/scoring';
 import Nav from '../Nav';
 
 export const dynamic = 'force-dynamic';
 
-export default function Leaderboard() {
-  const user = getSessionUser();
+export default async function Leaderboard() {
+  const user = await getSessionUser();
   if (!user) redirect('/');
 
-  const db = getDb();
-  const rows = db.prepare(`
+  const sql = getSql();
+  const rows = await sql`
     SELECT u.id, u.username, u.avatar, u.winner_pick,
-      COALESCE(SUM(p.points), 0) AS match_points,
-      COUNT(p.id) AS predictions,
-      SUM(CASE WHEN p.points >= 5 THEN 1 ELSE 0 END) AS exacts
+      COALESCE(SUM(p.points), 0)::int AS match_points,
+      COUNT(p.id)::int AS predictions,
+      COALESCE(SUM(CASE WHEN p.points >= 5 THEN 1 ELSE 0 END), 0)::int AS exacts
     FROM users u
     LEFT JOIN predictions p ON p.user_id = u.id AND p.points IS NOT NULL
     GROUP BY u.id
-  `).all();
+  `;
 
   // Winner pick bonus once the champion is recorded (admin enters the final's
   // result; champion = winner of the latest 'Final' stage match)
-  const final = db.prepare(
-    `SELECT * FROM matches WHERE stage = 'Final' AND home_score IS NOT NULL ORDER BY kickoff DESC LIMIT 1`
-  ).get();
+  const [final] = await sql`
+    SELECT * FROM matches WHERE stage = 'Final' AND home_score IS NOT NULL
+    ORDER BY kickoff DESC LIMIT 1
+  `;
   const champion = final
     ? (final.home_score > final.away_score ? final.home : final.away)
     : null;
