@@ -24,6 +24,9 @@ function ResultRow({ match, onSaved }) {
   const [away, setAway] = useState(match.away_score ?? '');
   const [scorers, setScorers] = useState(JSON.parse(match.scorers || '[]').join(', '));
   const [half, setHalf] = useState(notes.first_goal_half ?? '');
+  const [redCard, setRedCard] = useState(!!notes.red_card);
+  const [penalty, setPenalty] = useState(!!notes.penalty);
+  const [hatTrick, setHatTrick] = useState(!!notes.hat_trick);
   const [info, setInfo] = useState(notes.info || '');
   const [msg, setMsg] = useState('');
 
@@ -38,6 +41,9 @@ function ResultRow({ match, onSaved }) {
         away_score: Number(away),
         scorers: scorers.split(',').map((s) => s.trim()).filter(Boolean),
         first_goal_half: half ? Number(half) : null,
+        red_card: redCard,
+        penalty,
+        hat_trick: hatTrick,
         info,
       }),
     });
@@ -62,6 +68,20 @@ function ResultRow({ match, onSaved }) {
           <option value="1">First goal: 1st half</option>
           <option value="2">First goal: 2nd half</option>
         </select>
+      </div>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="checkbox" checked={redCard} onChange={(e) => setRedCard(e.target.checked)} />
+          🟥 Red card shown
+        </label>
+        <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="checkbox" checked={penalty} onChange={(e) => setPenalty(e.target.checked)} />
+          🎯 Penalty awarded
+        </label>
+        <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="checkbox" checked={hatTrick} onChange={(e) => setHatTrick(e.target.checked)} />
+          🎩 Hat-trick scored
+        </label>
       </div>
       <input placeholder="Scorers, comma-separated" value={scorers}
         onChange={(e) => setScorers(e.target.value)} />

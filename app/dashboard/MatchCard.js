@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { breakdownMatchPrediction } from '../../lib/scoring';
 
 export default function MatchCard({ match, prediction, finished = false, boostUsedToday = false }) {
   const router = useRouter();
@@ -12,6 +13,14 @@ export default function MatchCard({ match, prediction, finished = false, boostUs
     prediction ? JSON.parse(prediction.scorers).join(', ') : ''
   );
   const [firstHalf, setFirstHalf] = useState(prediction?.first_goal_half ?? '');
+  const savedBets = safeParse(prediction?.side_bets) || {};
+  const [btts, setBtts] = useState(
+    savedBets.btts === true ? 'yes' : savedBets.btts === false ? 'no' : ''
+  );
+  const [goals, setGoals] = useState(savedBets.goals || '');
+  const [redCard, setRedCard] = useState(!!savedBets.red_card);
+  const [penalty, setPenalty] = useState(!!savedBets.penalty);
+  const [hatTrick, setHatTrick] = useState(!!savedBets.hat_trick);
   const [boost, setBoost] = useState(!!prediction?.boost);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
@@ -32,6 +41,13 @@ export default function MatchCard({ match, prediction, finished = false, boostUs
         away_score: Number(away),
         scorers: scorers.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 3),
         first_goal_half: firstHalf ? Number(firstHalf) : null,
+        side_bets: {
+          btts: btts === 'yes' ? true : btts === 'no' ? false : null,
+          goals: goals || null,
+          red_card: redCard || null,
+          penalty: penalty || null,
+          hat_trick: hatTrick || null,
+        },
         boost,
       }),
     });
@@ -96,6 +112,10 @@ export default function MatchCard({ match, prediction, finished = false, boostUs
         </p>
       )}
 
+      {finished && prediction && (
+        <PointsBreakdown prediction={prediction} match={match} />
+      )}
+
       {open && !locked && (
         <form onSubmit={save} style={{ marginTop: 14, display: 'grid', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -120,6 +140,39 @@ export default function MatchCard({ match, prediction, finished = false, boostUs
               <option value="2">2nd half</option>
             </select>
           </label>
+          <div className="muted">🎰 Side bets — optional, wrong bets cost −1</div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <label>
+              <div className="muted">Both teams score? (+2)</div>
+              <select value={btts} onChange={(e) => setBtts(e.target.value)}>
+                <option value="">No bet</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </label>
+            <label>
+              <div className="muted">Total goals (+2)</div>
+              <select value={goals} onChange={(e) => setGoals(e.target.value)}>
+                <option value="">No bet</option>
+                <option value="over">Over 2.5</option>
+                <option value="under">Under 2.5</option>
+              </select>
+            </label>
+          </div>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input type="checkbox" checked={redCard} onChange={(e) => setRedCard(e.target.checked)} />
+              🟥 Red card shown (+3)
+            </label>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input type="checkbox" checked={penalty} onChange={(e) => setPenalty(e.target.checked)} />
+              🎯 Penalty awarded (+2)
+            </label>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input type="checkbox" checked={hatTrick} onChange={(e) => setHatTrick(e.target.checked)} />
+              🎩 Hat-trick scored (+5)
+            </label>
+          </div>
           <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input type="checkbox" checked={boost}
               disabled={!boost && boostUsedToday}
@@ -134,6 +187,26 @@ export default function MatchCard({ match, prediction, finished = false, boostUs
           </div>
         </form>
       )}
+    </div>
+  );
+}
+
+function PointsBreakdown({ prediction, match }) {
+  const items = breakdownMatchPrediction(prediction, match) || [];
+  return (
+    <div className="muted" style={{ marginTop: 8, fontSize: '0.9rem' }}>
+      <div>
+        Your pick: {prediction.home_score}–{prediction.away_score}
+        {items.length === 0 && ' · no points this time 😅'}
+      </div>
+      {items.map((it, i) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', maxWidth: 320 }}>
+          <span>{it.label}</span>
+          <span className={it.pts >= 0 ? 'success' : 'error'}>
+            {it.pts >= 0 ? `+${it.pts}` : it.pts}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

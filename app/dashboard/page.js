@@ -1,19 +1,20 @@
 import { redirect } from 'next/navigation';
-import { getDb } from '../../lib/db';
+import { getSql } from '../../lib/db';
 import { getSessionUser } from '../../lib/auth';
+import { duelPairs, DUEL_WIN_POINTS } from '../../lib/bonus';
 import Nav from '../Nav';
 import MatchCard from './MatchCard';
 import WinnerPick from './WinnerPick';
 
 export const dynamic = 'force-dynamic';
 
-function computeStreak(db, userId) {
-  const days = db
-    .prepare(
-      `SELECT DISTINCT date(updated_at) AS d FROM predictions WHERE user_id = ? ORDER BY d DESC`
-    )
-    .all(userId)
-    .map((r) => r.d);
+async function computeStreak(sql, userId) {
+  const days = (
+    await sql`
+      SELECT DISTINCT left(updated_at, 10) AS d FROM predictions
+      WHERE user_id = ${userId} ORDER BY d DESC
+    `
+  ).map((r) => r.d);
   let streak = 0;
   const today = new Date();
   for (let i = 0; ; i++) {
@@ -27,13 +28,13 @@ function computeStreak(db, userId) {
   return streak;
 }
 
-export default function Dashboard() {
-  const user = getSessionUser();
+export default async function Dashboard() {
+  const user = await getSessionUser();
   if (!user) redirect('/');
 
-  const db = getDb();
-  const matches = db.prepare('SELECT * FROM matches ORDER BY kickoff').all();
-  const preds = db.prepare('SELECT * FROM predictions WHERE user_id = ?').all(user.id);
+  const sql = getSql();
+  const matches = await sql`SELECT * FROM matches ORDER BY kickoff`;
+  const preds = await sql`SELECT * FROM predictions WHERE user_id = ${user.id}`;
   const predByMatch = Object.fromEntries(preds.map((p) => [p.match_id, p]));
 
   const now = new Date();
@@ -48,9 +49,22 @@ export default function Dashboard() {
       matches.find((m) => m.id === p.match_id)?.home_score === null
   );
 
-  const streak = computeStreak(db, user.id);
-  const tournamentStarted = matches.length > 0 && new Date(matches[0].kickoff) <= now;
+  const streak = await computeStreak(sql, user.id);
+  // Champion/Golden Boot picks lock when the knockout rounds begin
+  const knockoutStart = matches
+    .filter((m) => !m.stage.startsWith('Group'))
+    .map((m) => m.kickoff)
+    .sort()[0];
+  const picksLocked = !!knockoutStart && new Date(knockoutStart) <= now;
   const teams = [...new Set(matches.flatMap((m) => [m.home, m.away]))].sort();
+
+  // Today's duel opponent (only on days that have matches)
+  let duelOpponent = null;
+  if (matches.some((m) => m.kickoff.slice(0, 10) === todayIso)) {
+    const players = await sql`SELECT id, username, avatar FROM users`;
+    const opponentId = duelPairs(players.map((p) => p.id), todayIso).get(user.id);
+    duelOpponent = players.find((p) => p.id === opponentId) || null;
+  }
 
   return (
     <>
@@ -79,10 +93,25 @@ export default function Dashboard() {
           )
         )}
 
+        {duelOpponent && (
+          <div className="nudge">
+            <span style={{ fontSize: '1.5rem' }}>⚔️</span>
+            <div>
+              <strong>
+                Today&apos;s duel: you vs {duelOpponent.avatar} {duelOpponent.username}
+              </strong>
+              <div className="muted">
+                Most points from today&apos;s matches wins +{DUEL_WIN_POINTS}. No mercy.
+              </div>
+            </div>
+          </div>
+        )}
+
         <WinnerPick
           teams={teams}
           current={user.winner_pick}
-          locked={tournamentStarted}
+          currentTopScorer={user.top_scorer_pick}
+          locked={picksLocked}
         />
 
         <h2>Upcoming matches</h2>

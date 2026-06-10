@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '../../../lib/db';
+import { getSql } from '../../../lib/db';
 import { LEAGUE_PASSWORD, makeSessionToken } from '../../../lib/auth';
 
 export async function POST(req) {
@@ -16,13 +16,12 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Name must be 2–24 characters' }, { status: 400 });
   }
 
-  const db = getDb();
-  let user = db.prepare('SELECT * FROM users WHERE username = ?').get(name);
+  const sql = getSql();
+  let [user] = await sql`SELECT * FROM users WHERE lower(username) = lower(${name})`;
   if (!user) {
-    const info = db
-      .prepare('INSERT INTO users (username, avatar) VALUES (?, ?)')
-      .run(name, avatar || '⚽');
-    user = { id: info.lastInsertRowid };
+    [user] = await sql`
+      INSERT INTO users (username, avatar) VALUES (${name}, ${avatar || '⚽'}) RETURNING id
+    `;
   }
 
   const res = NextResponse.json({ ok: true });

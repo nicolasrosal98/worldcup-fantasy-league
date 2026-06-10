@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '../../../lib/db';
+import { getSql } from '../../../lib/db';
 import { getSessionUser } from '../../../lib/auth';
 
 export async function POST(req) {
-  const user = getSessionUser();
+  const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
 
   const body = await req.json();
-  const { match_id, home_score, away_score, scorers, first_goal_half, boost } = body;
+  const { match_id, home_score, away_score, scorers, first_goal_half, boost, side_bets } = body;
 
-  const db = getDb();
-  const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(match_id);
+  const sql = getSql();
+  const [match] = await sql`SELECT * FROM matches WHERE id = ${Number(match_id) || 0}`;
   if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
   if (new Date(match.kickoff) <= new Date() || match.home_score !== null) {
     return NextResponse.json({ error: 'Predictions are locked for this match' }, { status: 400 });
@@ -27,31 +27,43 @@ export async function POST(req) {
   );
   const half = first_goal_half === 1 || first_goal_half === 2 ? first_goal_half : null;
 
+  // Side bets: only keep known keys with valid values, null/absent = no bet
+  const sb = side_bets && typeof side_bets === 'object' ? side_bets : {};
+  const sideBetsJson = JSON.stringify({
+    btts: sb.btts === true || sb.btts === false ? sb.btts : null,
+    goals: sb.goals === 'over' || sb.goals === 'under' ? sb.goals : null,
+    red_card: sb.red_card === true ? true : null,
+    penalty: sb.penalty === true ? true : null,
+    hat_trick: sb.hat_trick === true ? true : null,
+  });
+
   // One boost per day across not-yet-played matches
   if (boost) {
     const today = new Date().toISOString().slice(0, 10);
-    const other = db.prepare(`
-      SELECT COUNT(*) AS c FROM predictions p
+    const [{ c }] = await sql`
+      SELECT COUNT(*)::int AS c FROM predictions p
       JOIN matches m ON m.id = p.match_id
-      WHERE p.user_id = ? AND p.boost = 1 AND p.match_id != ?
-        AND date(p.updated_at) = ? AND m.home_score IS NULL
-    `).get(user.id, match_id, today).c;
-    if (other > 0) {
+      WHERE p.user_id = ${user.id} AND p.boost = 1 AND p.match_id != ${match.id}
+        AND left(p.updated_at, 10) = ${today} AND m.home_score IS NULL
+    `;
+    if (c > 0) {
       return NextResponse.json({ error: 'You already used your boost today' }, { status: 400 });
     }
   }
 
-  db.prepare(`
-    INSERT INTO predictions (user_id, match_id, home_score, away_score, scorers, first_goal_half, boost, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    ON CONFLICT(user_id, match_id) DO UPDATE SET
+  const nowIso = new Date().toISOString();
+  await sql`
+    INSERT INTO predictions (user_id, match_id, home_score, away_score, scorers, first_goal_half, boost, side_bets, updated_at)
+    VALUES (${user.id}, ${match.id}, ${home_score}, ${away_score}, ${scorersJson}, ${half}, ${boost ? 1 : 0}, ${sideBetsJson}, ${nowIso})
+    ON CONFLICT (user_id, match_id) DO UPDATE SET
       home_score = excluded.home_score,
       away_score = excluded.away_score,
       scorers = excluded.scorers,
       first_goal_half = excluded.first_goal_half,
       boost = excluded.boost,
-      updated_at = datetime('now')
-  `).run(user.id, match_id, home_score, away_score, scorersJson, half, boost ? 1 : 0);
+      side_bets = excluded.side_bets,
+      updated_at = excluded.updated_at
+  `;
 
   return NextResponse.json({ ok: true });
 }

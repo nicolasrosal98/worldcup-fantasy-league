@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '../../../../lib/db';
+import { getSql } from '../../../../lib/db';
 import { isAdmin } from '../../../../lib/auth';
 
 export async function POST(req) {
@@ -10,9 +10,10 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 });
   }
 
-  getDb().prepare(
-    'INSERT INTO matches (stage, home, away, kickoff, venue) VALUES (?, ?, ?, ?, ?)'
-  ).run(stage, home, away, new Date(kickoff).toISOString(), venue || '');
+  await getSql()`
+    INSERT INTO matches (stage, home, away, kickoff, venue)
+    VALUES (${stage}, ${home}, ${away}, ${new Date(kickoff).toISOString()}, ${venue || ''})
+  `;
 
   return NextResponse.json({ ok: true });
 }

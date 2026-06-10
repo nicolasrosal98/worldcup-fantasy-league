@@ -1,7 +1,7 @@
 # 🏆 Laslo League — World Cup 2026 Fantasy
 
 A private, password-gated fantasy prediction league for the 2026 World Cup,
-built with Next.js (App Router) and SQLite.
+built with Next.js (App Router) and Supabase Postgres.
 
 ## How it works
 
@@ -9,8 +9,22 @@ built with Next.js (App Router) and SQLite.
   into) a profile with a name + avatar. No real accounts or emails.
 - **Predictions**: for every match, pick the exact score, up to 3 goalscorers,
   and an optional "first goal half" bonus bet. Editable until kickoff.
+- **Side bets 🎰**: per match, optionally bet on both-teams-to-score,
+  over/under 2.5 goals, a red card, a penalty, or a hat-trick. Right bets
+  pay out, wrong bets cost −1 — just like the bookies.
 - **Daily boost ⚡**: once per day you can double one match's points.
-- **Overall winner**: everyone picks a champion before the opening match (25 pts).
+- **Daily duel ⚔️**: every matchday you're paired against another player
+  (rotating round-robin) — most points from that day's matches wins +3.
+- **Perfect day 🌟**: call the outcome of every match on a 2+ match day
+  for +5.
+- **Against the crowd 🦄**: +3 when you call an outcome right and the
+  league majority picked differently.
+- **Champion & Golden Boot picks**: pick the champion (25 pts) and the
+  tournament top scorer (15 pts). Both stay open through the whole group
+  stage and only lock when the first knockout match kicks off — watch the
+  groups, then commit.
+- **Points breakdown**: finished match cards show exactly where every point
+  came from (and which bets backfired).
 - **Daily engagement**: the dashboard nudges you about today's unpredicted
   matches and tracks your prediction streak 🔥.
 - **Leaderboard**: live ranking, exact-score tiebreaker, highlights your row.
@@ -24,8 +38,17 @@ built with Next.js (App Router) and SQLite.
 | Each correct scorer (max 3) | +3 |
 | All named scorers correct (2+) | ×1.5 multiplier |
 | First-goal-half bet | +2 right / −1 wrong |
+| 🎰 Both teams to score (yes/no) | +2 right / −1 wrong |
+| 🎰 Over/under 2.5 goals | +2 right / −1 wrong |
+| 🎰 Red card shown | +3 right / −1 wrong |
+| 🎰 Penalty awarded | +2 right / −1 wrong |
+| 🎰 Hat-trick scored | +5 right / −1 wrong |
+| 🦄 Against the crowd (correct outcome vs league majority) | +3 |
+| 🌟 Perfect day (all outcomes right, 2+ match day) | +5 |
+| ⚔️ Daily duel win | +3 |
 | Daily boost | ×2 on one match |
-| Champion pick | +25 |
+| Champion pick (locks at knockouts) | +25 |
+| 👟 Golden Boot pick (locks at knockouts) | +15 |
 
 ## Updating results
 
@@ -41,12 +64,15 @@ there as the bracket fills in.
 
 ```bash
 npm install
-npm run dev   # http://localhost:3000
+cp .env.example .env.local   # fill in DATABASE_URL
+npm run dev                   # http://localhost:3000
 ```
 
-Config via env vars (all optional): `LEAGUE_PASSWORD`, `ADMIN_PASSWORD`,
-`SESSION_SECRET`, `DATA_DIR` (where `league.db` lives).
+Storage is a persistent Postgres database on Supabase (project
+`worldcup-fantasy-league`). Set `DATABASE_URL` to the connection string from
+the Supabase dashboard (Connect → use the transaction pooler URI on
+serverless hosts like Vercel). The schema lives in `supabase/migrations/`
+and is already applied; the opening-week fixtures are seeded in the DB.
 
-> Note: storage is SQLite on disk, so host it somewhere with a persistent
-> filesystem (a small VPS, Fly.io volume, Railway, etc.). Serverless hosts
-> like Vercel won't persist the database between deploys.
+Other env vars (optional): `LEAGUE_PASSWORD`, `ADMIN_PASSWORD`,
+`SESSION_SECRET`.
