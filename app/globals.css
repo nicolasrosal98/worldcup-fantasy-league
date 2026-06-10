@@ -1,0 +1,99 @@
+:root {
+  --bg: #0b1120;
+  --card: #131c33;
+  --card2: #1a2542;
+  --border: #27345a;
+  --text: #e8edf8;
+  --muted: #8b9bc0;
+  --accent: #34d399;
+  --accent2: #fbbf24;
+  --danger: #f87171;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+a { color: var(--accent); text-decoration: none; }
+
+.container { max-width: 880px; margin: 0 auto; padding: 24px 16px 80px; }
+
+.nav {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  background: var(--card); position: sticky; top: 0; z-index: 10;
+}
+.nav .brand { font-weight: 800; color: var(--text); }
+.nav .spacer { flex: 1; }
+.nav a { color: var(--muted); font-weight: 600; }
+.nav a:hover { color: var(--text); }
+
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 18px; margin-bottom: 16px;
+}
+
+.nudge {
+  background: linear-gradient(90deg, #173a2e, #1c2b4d);
+  border: 1px solid var(--accent);
+  border-radius: 14px; padding: 14px 18px; margin-bottom: 18px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+
+h1 { font-size: 1.6rem; margin: 0 0 6px; }
+h2 { font-size: 1.15rem; margin: 0 0 10px; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+
+input, select {
+  background: var(--card2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 8px 10px; font-size: 0.95rem;
+}
+input.score { width: 56px; text-align: center; font-size: 1.2rem; font-weight: 700; }
+
+button {
+  background: var(--accent); color: #06281c; border: none; border-radius: 8px;
+  padding: 9px 16px; font-weight: 700; font-size: 0.95rem; cursor: pointer;
+}
+button:hover { filter: brightness(1.1); }
+button.secondary { background: var(--card2); color: var(--text); border: 1px solid var(--border); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.matchrow {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  flex-wrap: wrap;
+}
+.teams { font-weight: 700; font-size: 1.05rem; }
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 700; background: var(--card2);
+  border: 1px solid var(--border); color: var(--muted);
+}
+.badge.live { color: var(--accent2); border-color: var(--accent2); }
+.badge.done { color: var(--accent); border-color: var(--accent); }
+.pts { color: var(--accent2); font-weight: 800; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+tr.me { background: rgba(52, 211, 153, 0.08); }
+
+.error { color: var(--danger); font-size: 0.9rem; margin-top: 8px; }
+.success { color: var(--accent); font-size: 0.9rem; margin-top: 8px; }
+
+.gate {
+  max-width: 420px; margin: 10vh auto 0; text-align: center;
+}
+.gate input { width: 100%; margin-bottom: 10px; padding: 12px; font-size: 1rem; }
+.gate button { width: 100%; padding: 12px; font-size: 1rem; }
+.avatar-pick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
+.avatar-pick button {
+  font-size: 1.4rem; background: var(--card2); border: 1px solid var(--border);
+  width: 48px; height: 48px; padding: 0;
+}
+.avatar-pick button.sel { border-color: var(--accent); background: #173a2e; }
