@@ -6,7 +6,8 @@ import { scoreMatchPrediction } from '../../../../lib/scoring';
 export async function POST(req) {
   if (!isAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { match_id, home_score, away_score, scorers, first_goal_half, info } = await req.json();
+  const { match_id, home_score, away_score, scorers, first_goal_half, info,
+    red_card, penalty, hat_trick } = await req.json();
   if (!Number.isInteger(home_score) || !Number.isInteger(away_score)) {
     return NextResponse.json({ error: 'Invalid score' }, { status: 400 });
   }
@@ -15,7 +16,13 @@ export async function POST(req) {
   const [match] = await sql`SELECT * FROM matches WHERE id = ${Number(match_id) || 0}`;
   if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
 
-  const notes = JSON.stringify({ first_goal_half: first_goal_half || null, info: info || '' });
+  const notes = JSON.stringify({
+    first_goal_half: first_goal_half || null,
+    info: info || '',
+    red_card: !!red_card,
+    penalty: !!penalty,
+    hat_trick: !!hat_trick,
+  });
   const scorersJson = JSON.stringify(Array.isArray(scorers) ? scorers : []);
 
   await sql`

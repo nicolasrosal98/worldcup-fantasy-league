@@ -7,7 +7,7 @@ export async function POST(req) {
   if (!user) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
 
   const body = await req.json();
-  const { match_id, home_score, away_score, scorers, first_goal_half, boost } = body;
+  const { match_id, home_score, away_score, scorers, first_goal_half, boost, side_bets } = body;
 
   const sql = getSql();
   const [match] = await sql`SELECT * FROM matches WHERE id = ${Number(match_id) || 0}`;
@@ -27,6 +27,16 @@ export async function POST(req) {
   );
   const half = first_goal_half === 1 || first_goal_half === 2 ? first_goal_half : null;
 
+  // Side bets: only keep known keys with valid values, null/absent = no bet
+  const sb = side_bets && typeof side_bets === 'object' ? side_bets : {};
+  const sideBetsJson = JSON.stringify({
+    btts: sb.btts === true || sb.btts === false ? sb.btts : null,
+    goals: sb.goals === 'over' || sb.goals === 'under' ? sb.goals : null,
+    red_card: sb.red_card === true ? true : null,
+    penalty: sb.penalty === true ? true : null,
+    hat_trick: sb.hat_trick === true ? true : null,
+  });
+
   // One boost per day across not-yet-played matches
   if (boost) {
     const today = new Date().toISOString().slice(0, 10);
@@ -43,14 +53,15 @@ export async function POST(req) {
 
   const nowIso = new Date().toISOString();
   await sql`
-    INSERT INTO predictions (user_id, match_id, home_score, away_score, scorers, first_goal_half, boost, updated_at)
-    VALUES (${user.id}, ${match.id}, ${home_score}, ${away_score}, ${scorersJson}, ${half}, ${boost ? 1 : 0}, ${nowIso})
+    INSERT INTO predictions (user_id, match_id, home_score, away_score, scorers, first_goal_half, boost, side_bets, updated_at)
+    VALUES (${user.id}, ${match.id}, ${home_score}, ${away_score}, ${scorersJson}, ${half}, ${boost ? 1 : 0}, ${sideBetsJson}, ${nowIso})
     ON CONFLICT (user_id, match_id) DO UPDATE SET
       home_score = excluded.home_score,
       away_score = excluded.away_score,
       scorers = excluded.scorers,
       first_goal_half = excluded.first_goal_half,
       boost = excluded.boost,
+      side_bets = excluded.side_bets,
       updated_at = excluded.updated_at
   `;
 

@@ -9,6 +9,9 @@ built with Next.js (App Router) and Supabase Postgres.
   into) a profile with a name + avatar. No real accounts or emails.
 - **Predictions**: for every match, pick the exact score, up to 3 goalscorers,
   and an optional "first goal half" bonus bet. Editable until kickoff.
+- **Side bets 🎰**: per match, optionally bet on both-teams-to-score,
+  over/under 2.5 goals, a red card, a penalty, or a hat-trick. Right bets
+  pay out, wrong bets cost −1 — just like the bookies.
 - **Daily boost ⚡**: once per day you can double one match's points.
 - **Overall winner**: everyone picks a champion before the opening match (25 pts).
 - **Daily engagement**: the dashboard nudges you about today's unpredicted
@@ -24,6 +27,11 @@ built with Next.js (App Router) and Supabase Postgres.
 | Each correct scorer (max 3) | +3 |
 | All named scorers correct (2+) | ×1.5 multiplier |
 | First-goal-half bet | +2 right / −1 wrong |
+| 🎰 Both teams to score (yes/no) | +2 right / −1 wrong |
+| 🎰 Over/under 2.5 goals | +2 right / −1 wrong |
+| 🎰 Red card shown | +3 right / −1 wrong |
+| 🎰 Penalty awarded | +2 right / −1 wrong |
+| 🎰 Hat-trick scored | +5 right / −1 wrong |
 | Daily boost | ×2 on one match |
 | Champion pick | +25 |
 
