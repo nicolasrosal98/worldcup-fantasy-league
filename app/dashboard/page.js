@@ -49,7 +49,12 @@ export default async function Dashboard() {
   );
 
   const streak = await computeStreak(sql, user.id);
-  const tournamentStarted = matches.length > 0 && new Date(matches[0].kickoff) <= now;
+  // Champion/Golden Boot picks lock when the knockout rounds begin
+  const knockoutStart = matches
+    .filter((m) => !m.stage.startsWith('Group'))
+    .map((m) => m.kickoff)
+    .sort()[0];
+  const picksLocked = !!knockoutStart && new Date(knockoutStart) <= now;
   const teams = [...new Set(matches.flatMap((m) => [m.home, m.away]))].sort();
 
   return (
@@ -82,7 +87,8 @@ export default async function Dashboard() {
         <WinnerPick
           teams={teams}
           current={user.winner_pick}
-          locked={tournamentStarted}
+          currentTopScorer={user.top_scorer_pick}
+          locked={picksLocked}
         />
 
         <h2>Upcoming matches</h2>

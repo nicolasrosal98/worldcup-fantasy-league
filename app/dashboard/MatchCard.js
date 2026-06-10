@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { breakdownMatchPrediction } from '../../lib/scoring';
 
 export default function MatchCard({ match, prediction, finished = false, boostUsedToday = false }) {
   const router = useRouter();
@@ -111,6 +112,10 @@ export default function MatchCard({ match, prediction, finished = false, boostUs
         </p>
       )}
 
+      {finished && prediction && (
+        <PointsBreakdown prediction={prediction} match={match} />
+      )}
+
       {open && !locked && (
         <form onSubmit={save} style={{ marginTop: 14, display: 'grid', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -182,6 +187,26 @@ export default function MatchCard({ match, prediction, finished = false, boostUs
           </div>
         </form>
       )}
+    </div>
+  );
+}
+
+function PointsBreakdown({ prediction, match }) {
+  const items = breakdownMatchPrediction(prediction, match) || [];
+  return (
+    <div className="muted" style={{ marginTop: 8, fontSize: '0.9rem' }}>
+      <div>
+        Your pick: {prediction.home_score}–{prediction.away_score}
+        {items.length === 0 && ' · no points this time 😅'}
+      </div>
+      {items.map((it, i) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', maxWidth: 320 }}>
+          <span>{it.label}</span>
+          <span className={it.pts >= 0 ? 'success' : 'error'}>
+            {it.pts >= 0 ? `+${it.pts}` : it.pts}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

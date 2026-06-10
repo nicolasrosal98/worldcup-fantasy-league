@@ -13,7 +13,12 @@ built with Next.js (App Router) and Supabase Postgres.
   over/under 2.5 goals, a red card, a penalty, or a hat-trick. Right bets
   pay out, wrong bets cost −1 — just like the bookies.
 - **Daily boost ⚡**: once per day you can double one match's points.
-- **Overall winner**: everyone picks a champion before the opening match (25 pts).
+- **Champion & Golden Boot picks**: pick the champion (25 pts) and the
+  tournament top scorer (15 pts). Both stay open through the whole group
+  stage and only lock when the first knockout match kicks off — watch the
+  groups, then commit.
+- **Points breakdown**: finished match cards show exactly where every point
+  came from (and which bets backfired).
 - **Daily engagement**: the dashboard nudges you about today's unpredicted
   matches and tracks your prediction streak 🔥.
 - **Leaderboard**: live ranking, exact-score tiebreaker, highlights your row.
@@ -33,7 +38,8 @@ built with Next.js (App Router) and Supabase Postgres.
 | 🎰 Penalty awarded | +2 right / −1 wrong |
 | 🎰 Hat-trick scored | +5 right / −1 wrong |
 | Daily boost | ×2 on one match |
-| Champion pick | +25 |
+| Champion pick (locks at knockouts) | +25 |
+| 👟 Golden Boot pick (locks at knockouts) | +15 |
 
 ## Updating results
 
