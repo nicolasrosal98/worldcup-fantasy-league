@@ -13,6 +13,12 @@ built with Next.js (App Router) and Supabase Postgres.
   over/under 2.5 goals, a red card, a penalty, or a hat-trick. Right bets
   pay out, wrong bets cost −1 — just like the bookies.
 - **Daily boost ⚡**: once per day you can double one match's points.
+- **Daily duel ⚔️**: every matchday you're paired against another player
+  (rotating round-robin) — most points from that day's matches wins +3.
+- **Perfect day 🌟**: call the outcome of every match on a 2+ match day
+  for +5.
+- **Against the crowd 🦄**: +3 when you call an outcome right and the
+  league majority picked differently.
 - **Champion & Golden Boot picks**: pick the champion (25 pts) and the
   tournament top scorer (15 pts). Both stay open through the whole group
   stage and only lock when the first knockout match kicks off — watch the
@@ -37,6 +43,9 @@ built with Next.js (App Router) and Supabase Postgres.
 | 🎰 Red card shown | +3 right / −1 wrong |
 | 🎰 Penalty awarded | +2 right / −1 wrong |
 | 🎰 Hat-trick scored | +5 right / −1 wrong |
+| 🦄 Against the crowd (correct outcome vs league majority) | +3 |
+| 🌟 Perfect day (all outcomes right, 2+ match day) | +5 |
+| ⚔️ Daily duel win | +3 |
 | Daily boost | ×2 on one match |
 | Champion pick (locks at knockouts) | +25 |
 | 👟 Golden Boot pick (locks at knockouts) | +15 |

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getSql } from '../../lib/db';
 import { getSessionUser } from '../../lib/auth';
 import { WINNER_PICK_POINTS, TOP_SCORER_POINTS, computeTopScorers } from '../../lib/scoring';
+import { computeDailyBonuses, PERFECT_DAY_POINTS, DUEL_WIN_POINTS } from '../../lib/bonus';
 import Nav from '../Nav';
 
 export const dynamic = 'force-dynamic';
@@ -36,8 +37,19 @@ export default async function Leaderboard() {
     ? computeTopScorers(await sql`SELECT home_score, scorers FROM matches`)
     : new Set();
 
+  // Perfect-day and daily-duel bonuses, settled per finished matchday
+  const allMatches = await sql`SELECT id, kickoff, home_score, away_score FROM matches`;
+  const allPreds = await sql`
+    SELECT user_id, match_id, home_score, away_score, points FROM predictions
+  `;
+  const daily = computeDailyBonuses(rows.map((r) => r.id), allMatches, allPreds);
+
   for (const r of rows) {
-    r.bonus = champion && r.winner_pick === champion ? WINNER_PICK_POINTS : 0;
+    const d = daily.get(r.id) || { perfectDays: 0, duelWins: 0, bonus: 0 };
+    r.perfectDays = d.perfectDays;
+    r.duelWins = d.duelWins;
+    r.bonus = d.bonus;
+    if (champion && r.winner_pick === champion) r.bonus += WINNER_PICK_POINTS;
     if (r.top_scorer_pick && topScorers.has(r.top_scorer_pick.trim().toLowerCase())) {
       r.bonus += TOP_SCORER_POINTS;
     }
@@ -52,15 +64,17 @@ export default async function Leaderboard() {
         <h1>Leaderboard</h1>
         <p className="muted">
           Exact score 5 · outcome 2 · scorer +3 each · all scorers right ×1.5 ·
-          first-goal bet +2/−1 · side bets 🎰 · daily boost ×2 ·
-          champion pick +{WINNER_PICK_POINTS} · Golden Boot +{TOP_SCORER_POINTS}
+          first-goal bet +2/−1 · side bets 🎰 · against the crowd 🦄 +3 ·
+          perfect day 🌟 +{PERFECT_DAY_POINTS} · duel win ⚔️ +{DUEL_WIN_POINTS} ·
+          daily boost ×2 · champion pick +{WINNER_PICK_POINTS} ·
+          Golden Boot +{TOP_SCORER_POINTS}
         </p>
         <div className="card">
           <table>
             <thead>
               <tr>
                 <th>#</th><th>Player</th><th>🏆 Pick</th><th>👟 Boot</th>
-                <th>Preds</th><th>Exacts</th><th>Points</th>
+                <th>Preds</th><th>Exacts</th><th>🌟</th><th>⚔️</th><th>Points</th>
               </tr>
             </thead>
             <tbody>
@@ -72,6 +86,8 @@ export default async function Leaderboard() {
                   <td className="muted">{r.top_scorer_pick || '—'}</td>
                   <td>{r.predictions}</td>
                   <td>{r.exacts}</td>
+                  <td>{r.perfectDays || ''}</td>
+                  <td>{r.duelWins || ''}</td>
                   <td className="pts">{r.total}</td>
                 </tr>
               ))}

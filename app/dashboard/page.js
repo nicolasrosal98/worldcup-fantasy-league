@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getSql } from '../../lib/db';
 import { getSessionUser } from '../../lib/auth';
+import { duelPairs, DUEL_WIN_POINTS } from '../../lib/bonus';
 import Nav from '../Nav';
 import MatchCard from './MatchCard';
 import WinnerPick from './WinnerPick';
@@ -57,6 +58,14 @@ export default async function Dashboard() {
   const picksLocked = !!knockoutStart && new Date(knockoutStart) <= now;
   const teams = [...new Set(matches.flatMap((m) => [m.home, m.away]))].sort();
 
+  // Today's duel opponent (only on days that have matches)
+  let duelOpponent = null;
+  if (matches.some((m) => m.kickoff.slice(0, 10) === todayIso)) {
+    const players = await sql`SELECT id, username, avatar FROM users`;
+    const opponentId = duelPairs(players.map((p) => p.id), todayIso).get(user.id);
+    duelOpponent = players.find((p) => p.id === opponentId) || null;
+  }
+
   return (
     <>
       <Nav user={user} />
@@ -82,6 +91,20 @@ export default async function Dashboard() {
               <strong>{streak}-day prediction streak — keep it going!</strong>
             </div>
           )
+        )}
+
+        {duelOpponent && (
+          <div className="nudge">
+            <span style={{ fontSize: '1.5rem' }}>⚔️</span>
+            <div>
+              <strong>
+                Today&apos;s duel: you vs {duelOpponent.avatar} {duelOpponent.username}
+              </strong>
+              <div className="muted">
+                Most points from today&apos;s matches wins +{DUEL_WIN_POINTS}. No mercy.
+              </div>
+            </div>
+          </div>
         )}
 
         <WinnerPick
