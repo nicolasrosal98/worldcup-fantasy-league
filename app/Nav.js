@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { clearUser } from '../lib/session';
 
 export default function Nav({ user }) {
   const router = useRouter();
-  async function logout() {
-    await fetch('/api/logout', { method: 'POST' });
+  function logout() {
+    clearUser();
     router.push('/');
   }
   return (

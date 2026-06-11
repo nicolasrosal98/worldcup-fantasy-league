@@ -1,40 +1,80 @@
-import { redirect } from 'next/navigation';
-import { getSql } from '../../lib/db';
-import { getSessionUser } from '../../lib/auth';
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { getSupabase } from '../../lib/supabase';
+import { getStoredUser, clearUser } from '../../lib/session';
 import { duelPairs, DUEL_WIN_POINTS } from '../../lib/bonus';
 import Nav from '../Nav';
 import MatchCard from './MatchCard';
 import WinnerPick from './WinnerPick';
 
-export const dynamic = 'force-dynamic';
-
-async function computeStreak(sql, userId) {
-  const days = (
-    await sql`
-      SELECT DISTINCT left(updated_at, 10) AS d FROM predictions
-      WHERE user_id = ${userId} ORDER BY d DESC
-    `
-  ).map((r) => r.d);
+function computeStreak(preds) {
+  const days = new Set(preds.map((p) => p.updated_at.slice(0, 10)));
   let streak = 0;
   const today = new Date();
   for (let i = 0; ; i++) {
     const d = new Date(today);
     d.setUTCDate(d.getUTCDate() - i);
     const iso = d.toISOString().slice(0, 10);
-    if (days.includes(iso)) streak++;
+    if (days.has(iso)) streak++;
     else if (i === 0) continue; // today not yet predicted doesn't break streak
     else break;
   }
   return streak;
 }
 
-export default async function Dashboard() {
-  const user = await getSessionUser();
-  if (!user) redirect('/');
+export default function Dashboard() {
+  const router = useRouter();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
 
-  const sql = getSql();
-  const matches = await sql`SELECT * FROM matches ORDER BY kickoff`;
-  const preds = await sql`SELECT * FROM predictions WHERE user_id = ${user.id}`;
+  const load = useCallback(async () => {
+    const stored = getStoredUser();
+    if (!stored) {
+      router.replace('/');
+      return;
+    }
+    try {
+      const supabase = getSupabase();
+      const [me, matches, preds, players] = await Promise.all([
+        supabase.from('users').select('*').eq('id', stored.id).maybeSingle(),
+        supabase.from('matches').select('*').order('kickoff'),
+        supabase.from('predictions').select('*').eq('user_id', stored.id),
+        supabase.from('users').select('id, username, avatar'),
+      ]);
+      const err = me.error || matches.error || preds.error || players.error;
+      if (err) throw err;
+      if (!me.data) {
+        clearUser();
+        router.replace('/');
+        return;
+      }
+      setData({
+        user: me.data,
+        matches: matches.data,
+        preds: preds.data,
+        players: players.data,
+      });
+    } catch (err) {
+      setError(err.message || 'Could not load the league.');
+    }
+  }, [router]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (error) {
+    return (
+      <div className="container">
+        <p className="error">{error}</p>
+      </div>
+    );
+  }
+  if (!data) return <div className="container"><p className="muted">Loading…</p></div>;
+
+  const { user, matches, preds, players } = data;
   const predByMatch = Object.fromEntries(preds.map((p) => [p.match_id, p]));
 
   const now = new Date();
@@ -49,7 +89,7 @@ export default async function Dashboard() {
       matches.find((m) => m.id === p.match_id)?.home_score === null
   );
 
-  const streak = await computeStreak(sql, user.id);
+  const streak = computeStreak(preds);
   // Champion/Golden Boot picks lock when the knockout rounds begin
   const knockoutStart = matches
     .filter((m) => !m.stage.startsWith('Group'))
@@ -61,7 +101,6 @@ export default async function Dashboard() {
   // Today's duel opponent (only on days that have matches)
   let duelOpponent = null;
   if (matches.some((m) => m.kickoff.slice(0, 10) === todayIso)) {
-    const players = await sql`SELECT id, username, avatar FROM users`;
     const opponentId = duelPairs(players.map((p) => p.id), todayIso).get(user.id);
     duelOpponent = players.find((p) => p.id === opponentId) || null;
   }
@@ -108,10 +147,12 @@ export default async function Dashboard() {
         )}
 
         <WinnerPick
+          userId={user.id}
           teams={teams}
           current={user.winner_pick}
           currentTopScorer={user.top_scorer_pick}
           locked={picksLocked}
+          onSaved={load}
         />
 
         <h2>Upcoming matches</h2>
@@ -119,9 +160,11 @@ export default async function Dashboard() {
         {upcoming.map((m) => (
           <MatchCard
             key={m.id}
+            userId={user.id}
             match={m}
             prediction={predByMatch[m.id] || null}
             boostUsedToday={boostUsedToday}
+            onSaved={load}
           />
         ))}
 
@@ -130,7 +173,8 @@ export default async function Dashboard() {
           <p className="muted">No results yet — points will appear here after each match.</p>
         )}
         {finished.map((m) => (
-          <MatchCard key={m.id} match={m} prediction={predByMatch[m.id] || null} finished />
+          <MatchCard key={m.id} userId={user.id} match={m}
+            prediction={predByMatch[m.id] || null} finished onSaved={load} />
         ))}
       </div>
     </>

@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getSupabase } from '../lib/supabase';
+import { LEAGUE_PASSWORD, storeUser } from '../lib/session';
 
 const AVATARS = ['⚽', '🏆', '🦁', '🦅', '🐺', '🔥', '🌟', '🐉', '🦈', '🎯', '👑', '🚀'];
 
@@ -14,30 +16,47 @@ export default function LoginGate() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  async function checkPassword(e) {
+  function checkPassword(e) {
     e.preventDefault();
     setError('');
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
-    });
-    if (res.ok) setStep('profile');
+    if (password === LEAGUE_PASSWORD) setStep('profile');
     else setError('Wrong password — ask the league admin.');
   }
 
   async function enter(e) {
     e.preventDefault();
     setError('');
+    const name = username.trim();
+    if (name.length < 2 || name.length > 24) {
+      setError('Name must be 2–24 characters');
+      return;
+    }
     setBusy(true);
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password, username, avatar }),
-    });
-    setBusy(false);
-    if (res.ok) router.push('/dashboard');
-    else setError((await res.json()).error || 'Something went wrong.');
+    try {
+      const supabase = getSupabase();
+      // Returning player: case-insensitive name match (ilike with escaped
+      // wildcards = case-insensitive equality)
+      let { data: user, error: err } = await supabase
+        .from('users')
+        .select('id, username, avatar')
+        .ilike('username', name.replace(/[%_]/g, '\\$&'))
+        .maybeSingle();
+      if (err) throw err;
+      if (!user) {
+        ({ data: user, error: err } = await supabase
+          .from('users')
+          .insert({ username: name, avatar: avatar || '⚽' })
+          .select('id, username, avatar')
+          .single());
+        if (err) throw err;
+      }
+      storeUser(user);
+      router.push('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Something went wrong.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

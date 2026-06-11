@@ -1,11 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { getSupabase } from '../../lib/supabase';
 import { breakdownMatchPrediction } from '../../lib/scoring';
 
-export default function MatchCard({ match, prediction, finished = false, boostUsedToday = false }) {
-  const router = useRouter();
+export default function MatchCard({ userId, match, prediction, finished = false, boostUsedToday = false, onSaved }) {
   const [open, setOpen] = useState(false);
   const [home, setHome] = useState(prediction?.home_score ?? '');
   const [away, setAway] = useState(prediction?.away_score ?? '');
@@ -32,30 +31,43 @@ export default function MatchCard({ match, prediction, finished = false, boostUs
   async function save(e) {
     e.preventDefault();
     setErr(''); setMsg('');
-    const res = await fetch('/api/predict', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    if (new Date(match.kickoff) <= new Date() || match.home_score !== null) {
+      setErr('Predictions are locked for this match');
+      return;
+    }
+    const h = Number(home);
+    const a = Number(away);
+    if (!Number.isInteger(h) || !Number.isInteger(a) || h < 0 || a < 0 || h > 15 || a > 15) {
+      setErr('Invalid score');
+      return;
+    }
+    const { error } = await getSupabase().from('predictions').upsert(
+      {
+        user_id: userId,
         match_id: match.id,
-        home_score: Number(home),
-        away_score: Number(away),
-        scorers: scorers.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 3),
+        home_score: h,
+        away_score: a,
+        scorers: JSON.stringify(
+          scorers.split(',').map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 3)
+        ),
         first_goal_half: firstHalf ? Number(firstHalf) : null,
-        side_bets: {
+        side_bets: JSON.stringify({
           btts: btts === 'yes' ? true : btts === 'no' ? false : null,
           goals: goals || null,
           red_card: redCard || null,
           penalty: penalty || null,
           hat_trick: hatTrick || null,
-        },
-        boost,
-      }),
-    });
-    if (res.ok) {
+        }),
+        boost: boost ? 1 : 0,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,match_id' }
+    );
+    if (!error) {
       setMsg('Prediction saved ✔');
-      router.refresh();
+      onSaved?.();
     } else {
-      setErr((await res.json()).error || 'Could not save.');
+      setErr(error.message || 'Could not save.');
     }
   }
 

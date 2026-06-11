@@ -1,10 +1,27 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { getSupabase } from '../../lib/supabase';
+import { scoreMatchPrediction } from '../../lib/scoring';
 
-export default function AdminPanel({ matches }) {
-  const router = useRouter();
+export default function AdminPanel() {
+  const [matches, setMatches] = useState(null);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    const { data, error: err } = await getSupabase()
+      .from('matches').select('*').order('kickoff');
+    if (err) setError(err.message);
+    else setMatches(data);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (error) return <div className="container"><p className="error">{error}</p></div>;
+  if (!matches) return <div className="container"><p className="muted">Loading…</p></div>;
+
   return (
     <div className="container">
       <h1>🔧 Admin — match results</h1>
@@ -12,10 +29,57 @@ export default function AdminPanel({ matches }) {
         Enter the final score, scorers and first-goal half after each match.
         Saving recomputes everyone&apos;s points. <a href="/dashboard">← back to app</a>
       </p>
-      <AddMatch onSaved={() => router.refresh()} />
-      {matches.map((m) => <ResultRow key={m.id} match={m} onSaved={() => router.refresh()} />)}
+      <AddMatch onSaved={load} />
+      {matches.map((m) => <ResultRow key={m.id} match={m} onSaved={load} />)}
     </div>
   );
+}
+
+// Saves a result and regrades every prediction for that match — the same
+// logic the /api/admin/result route used to run on the server.
+async function saveResult(match, { home_score, away_score, scorers, first_goal_half,
+  red_card, penalty, hat_trick, info }) {
+  const supabase = getSupabase();
+  const { data: preds, error: predsErr } = await supabase
+    .from('predictions').select('*').eq('match_id', match.id);
+  if (predsErr) throw predsErr;
+
+  // League majority outcome ('H'/'D'/'A') for the "against the crowd" bonus:
+  // only set with 3+ predictions and a clear (untied) majority
+  let crowd = null;
+  if (preds.length >= 3) {
+    const counts = { H: 0, D: 0, A: 0 };
+    for (const p of preds) {
+      const s = Math.sign(p.home_score - p.away_score);
+      counts[s > 0 ? 'H' : s < 0 ? 'A' : 'D']++;
+    }
+    const top = Math.max(counts.H, counts.D, counts.A);
+    const leaders = Object.keys(counts).filter((k) => counts[k] === top);
+    if (leaders.length === 1) crowd = leaders[0];
+  }
+
+  const notes = JSON.stringify({
+    first_goal_half: first_goal_half || null,
+    info: info || '',
+    red_card: !!red_card,
+    penalty: !!penalty,
+    hat_trick: !!hat_trick,
+    crowd_outcome: crowd,
+  });
+  const scorersJson = JSON.stringify(Array.isArray(scorers) ? scorers : []);
+
+  const { error: matchErr } = await supabase.from('matches')
+    .update({ home_score, away_score, scorers: scorersJson, notes })
+    .eq('id', match.id);
+  if (matchErr) throw matchErr;
+
+  const updated = { ...match, home_score, away_score, scorers: scorersJson, notes };
+  for (const p of preds) {
+    const { error: err } = await supabase.from('predictions')
+      .update({ points: scoreMatchPrediction(p, updated) })
+      .eq('id', p.id);
+    if (err) throw err;
+  }
 }
 
 function ResultRow({ match, onSaved }) {
@@ -32,11 +96,8 @@ function ResultRow({ match, onSaved }) {
 
   async function save(e) {
     e.preventDefault();
-    const res = await fetch('/api/admin/result', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        match_id: match.id,
+    try {
+      await saveResult(match, {
         home_score: Number(home),
         away_score: Number(away),
         scorers: scorers.split(',').map((s) => s.trim()).filter(Boolean),
@@ -45,9 +106,11 @@ function ResultRow({ match, onSaved }) {
         penalty,
         hat_trick: hatTrick,
         info,
-      }),
-    });
-    setMsg(res.ok ? 'Saved & points recomputed ✔' : 'Error saving.');
+      });
+      setMsg('Saved & points recomputed ✔');
+    } catch {
+      setMsg('Error saving.');
+    }
     onSaved();
   }
 
@@ -105,13 +168,15 @@ function AddMatch({ onSaved }) {
 
   async function save(e) {
     e.preventDefault();
-    const res = await fetch('/api/admin/match', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage, home, away, kickoff: new Date(kickoff).toISOString(), venue }),
+    if (!home || !away || !kickoff || isNaN(new Date(kickoff))) {
+      setMsg('Missing or invalid fields.');
+      return;
+    }
+    const { error } = await getSupabase().from('matches').insert({
+      stage, home, away, kickoff: new Date(kickoff).toISOString(), venue: venue || '',
     });
-    setMsg(res.ok ? 'Match added ✔' : 'Error adding match.');
-    if (res.ok) { setHome(''); setAway(''); setKickoff(''); setVenue(''); }
+    setMsg(!error ? 'Match added ✔' : 'Error adding match.');
+    if (!error) { setHome(''); setAway(''); setKickoff(''); setVenue(''); }
     onSaved();
   }
 

@@ -1,48 +1,86 @@
-import { redirect } from 'next/navigation';
-import { getSql } from '../../lib/db';
-import { getSessionUser } from '../../lib/auth';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { getSupabase } from '../../lib/supabase';
+import { getStoredUser, clearUser } from '../../lib/session';
 import { WINNER_PICK_POINTS, TOP_SCORER_POINTS, computeTopScorers } from '../../lib/scoring';
 import { computeDailyBonuses, PERFECT_DAY_POINTS, DUEL_WIN_POINTS } from '../../lib/bonus';
 import Nav from '../Nav';
 
-export const dynamic = 'force-dynamic';
+export default function Leaderboard() {
+  const router = useRouter();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
 
-export default async function Leaderboard() {
-  const user = await getSessionUser();
-  if (!user) redirect('/');
+  useEffect(() => {
+    const stored = getStoredUser();
+    if (!stored) {
+      router.replace('/');
+      return;
+    }
+    (async () => {
+      try {
+        const supabase = getSupabase();
+        const [users, matches, preds] = await Promise.all([
+          supabase.from('users').select('*'),
+          supabase.from('matches').select('*'),
+          supabase.from('predictions').select('*'),
+        ]);
+        const err = users.error || matches.error || preds.error;
+        if (err) throw err;
+        const me = users.data.find((u) => u.id === stored.id);
+        if (!me) {
+          clearUser();
+          router.replace('/');
+          return;
+        }
+        setData({ user: me, users: users.data, matches: matches.data, preds: preds.data });
+      } catch (err) {
+        setError(err.message || 'Could not load the leaderboard.');
+      }
+    })();
+  }, [router]);
 
-  const sql = getSql();
-  const rows = await sql`
-    SELECT u.id, u.username, u.avatar, u.winner_pick, u.top_scorer_pick,
-      COALESCE(SUM(p.points), 0)::int AS match_points,
-      COUNT(p.id)::int AS predictions,
-      COALESCE(SUM(CASE WHEN p.points >= 5 THEN 1 ELSE 0 END), 0)::int AS exacts
-    FROM users u
-    LEFT JOIN predictions p ON p.user_id = u.id AND p.points IS NOT NULL
-    GROUP BY u.id
-  `;
+  if (error) {
+    return (
+      <div className="container">
+        <p className="error">{error}</p>
+      </div>
+    );
+  }
+  if (!data) return <div className="container"><p className="muted">Loading…</p></div>;
+
+  const { user, users, matches, preds } = data;
+
+  const rows = users.map((u) => {
+    const graded = preds.filter((p) => p.user_id === u.id && p.points !== null);
+    return {
+      id: u.id,
+      username: u.username,
+      avatar: u.avatar,
+      winner_pick: u.winner_pick,
+      top_scorer_pick: u.top_scorer_pick,
+      match_points: graded.reduce((s, p) => s + p.points, 0),
+      predictions: graded.length,
+      exacts: graded.filter((p) => p.points >= 5).length,
+    };
+  });
 
   // Winner pick bonus once the champion is recorded (admin enters the final's
   // result; champion = winner of the latest 'Final' stage match)
-  const [final] = await sql`
-    SELECT * FROM matches WHERE stage = 'Final' AND home_score IS NOT NULL
-    ORDER BY kickoff DESC LIMIT 1
-  `;
+  const final = matches
+    .filter((m) => m.stage === 'Final' && m.home_score !== null)
+    .sort((a, b) => b.kickoff.localeCompare(a.kickoff))[0];
   const champion = final
     ? (final.home_score > final.away_score ? final.home : final.away)
     : null;
 
   // Golden Boot pays out once the tournament is over (ties all count)
-  const topScorers = champion
-    ? computeTopScorers(await sql`SELECT home_score, scorers FROM matches`)
-    : new Set();
+  const topScorers = champion ? computeTopScorers(matches) : new Set();
 
   // Perfect-day and daily-duel bonuses, settled per finished matchday
-  const allMatches = await sql`SELECT id, kickoff, home_score, away_score FROM matches`;
-  const allPreds = await sql`
-    SELECT user_id, match_id, home_score, away_score, points FROM predictions
-  `;
-  const daily = computeDailyBonuses(rows.map((r) => r.id), allMatches, allPreds);
+  const daily = computeDailyBonuses(rows.map((r) => r.id), matches, preds);
 
   for (const r of rows) {
     const d = daily.get(r.id) || { perfectDays: 0, duelWins: 0, bonus: 0 };

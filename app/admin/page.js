@@ -1,12 +1,18 @@
-import { getSql } from '../../lib/db';
-import { isAdmin } from '../../lib/auth';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { isAdminUnlocked } from '../../lib/session';
 import AdminPanel from './AdminPanel';
 import AdminLogin from './AdminLogin';
 
-export const dynamic = 'force-dynamic';
+export default function Admin() {
+  const [unlocked, setUnlocked] = useState(null);
 
-export default async function Admin() {
-  if (!isAdmin()) return <AdminLogin />;
-  const matches = await getSql()`SELECT * FROM matches ORDER BY kickoff`;
-  return <AdminPanel matches={matches} />;
+  useEffect(() => {
+    setUnlocked(isAdminUnlocked());
+  }, []);
+
+  if (unlocked === null) return null;
+  if (!unlocked) return <AdminLogin onUnlocked={() => setUnlocked(true)} />;
+  return <AdminPanel />;
 }

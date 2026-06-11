@@ -1,7 +1,7 @@
 # 🏆 Laslo League — World Cup 2026 Fantasy
 
 A private, password-gated fantasy prediction league for the 2026 World Cup,
-built with Next.js (App Router) and Supabase Postgres.
+built with Next.js (App Router) and Supabase (`supabase-js` from the browser).
 
 ## How it works
 
@@ -64,15 +64,22 @@ there as the bracket fills in.
 
 ```bash
 npm install
-cp .env.example .env.local   # fill in DATABASE_URL
-npm run dev                   # http://localhost:3000
+npm run dev   # http://localhost:3000
 ```
 
-Storage is a persistent Postgres database on Supabase (project
-`worldcup-fantasy-league`). Set `DATABASE_URL` to the connection string from
-the Supabase dashboard (Connect → use the transaction pooler URI on
-serverless hosts like Vercel). The schema lives in `supabase/migrations/`
-and is already applied; the opening-week fixtures are seeded in the DB.
+Create `.env.local` with the two Supabase keys (dashboard → Settings → API):
 
-Other env vars (optional): `LEAGUE_PASSWORD`, `ADMIN_PASSWORD`,
-`SESSION_SECRET`.
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
+
+The app talks to Supabase straight from the browser with `@supabase/supabase-js`
+and the publishable key — no server-side database connection. Row Level
+Security policies (see `supabase/migrations/`) give the anon role read/write
+access to the league tables; the league itself is gated by the shared
+password in the UI. The schema and policies are already applied to the live
+project (`worldcup-fantasy-league`), and the opening-week fixtures are seeded.
+
+Other env vars (optional): `NEXT_PUBLIC_LEAGUE_PASSWORD`,
+`NEXT_PUBLIC_ADMIN_PASSWORD`.
