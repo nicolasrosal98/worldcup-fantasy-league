@@ -2,18 +2,26 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getStoredUser } from '../lib/session';
+import { getSessionProfile } from '../lib/supabase';
 import LoginGate from './LoginGate';
 
 export default function Home() {
   const router = useRouter();
-  const [checked, setChecked] = useState(false);
+  const [step, setStep] = useState(null);
 
   useEffect(() => {
-    if (getStoredUser()) router.replace('/dashboard');
-    else setChecked(true);
+    (async () => {
+      try {
+        const { session, profile } = await getSessionProfile();
+        if (profile) router.replace('/dashboard');
+        else if (session) setStep('profile'); // signed in, no profile yet
+        else setStep('password');
+      } catch {
+        setStep('password');
+      }
+    })();
   }, [router]);
 
-  if (!checked) return null;
-  return <LoginGate />;
+  if (!step) return null;
+  return <LoginGate initialStep={step} />;
 }

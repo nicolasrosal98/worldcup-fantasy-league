@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { clearUser } from '../lib/session';
+import { getSupabase } from '../lib/supabase';
 
 export default function Nav({ user }) {
   const router = useRouter();
-  function logout() {
-    clearUser();
+  async function logout() {
+    await getSupabase().auth.signOut();
     router.push('/');
   }
   return (

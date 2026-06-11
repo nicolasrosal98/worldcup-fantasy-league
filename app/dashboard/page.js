@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSupabase } from '../../lib/supabase';
-import { getStoredUser, clearUser } from '../../lib/session';
+import { getSupabase, getSessionProfile } from '../../lib/supabase';
 import { duelPairs, DUEL_WIN_POINTS } from '../../lib/bonus';
 import Nav from '../Nav';
 import MatchCard from './MatchCard';
@@ -30,28 +29,22 @@ export default function Dashboard() {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    const stored = getStoredUser();
-    if (!stored) {
-      router.replace('/');
-      return;
-    }
     try {
-      const supabase = getSupabase();
-      const [me, matches, preds, players] = await Promise.all([
-        supabase.from('users').select('*').eq('id', stored.id).maybeSingle(),
-        supabase.from('matches').select('*').order('kickoff'),
-        supabase.from('predictions').select('*').eq('user_id', stored.id),
-        supabase.from('users').select('id, username, avatar'),
-      ]);
-      const err = me.error || matches.error || preds.error || players.error;
-      if (err) throw err;
-      if (!me.data) {
-        clearUser();
+      const { profile } = await getSessionProfile();
+      if (!profile) {
         router.replace('/');
         return;
       }
+      const supabase = getSupabase();
+      const [matches, preds, players] = await Promise.all([
+        supabase.from('matches').select('*').order('kickoff'),
+        supabase.from('predictions').select('*').eq('user_id', profile.id),
+        supabase.from('users').select('id, username, avatar'),
+      ]);
+      const err = matches.error || preds.error || players.error;
+      if (err) throw err;
       setData({
-        user: me.data,
+        user: profile,
         matches: matches.data,
         preds: preds.data,
         players: players.data,

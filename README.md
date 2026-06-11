@@ -5,8 +5,10 @@ built with Next.js (App Router) and Supabase (`supabase-js` from the browser).
 
 ## How it works
 
-- **Gate**: friends enter the shared league password, then create (or log back
-  into) a profile with a name + avatar. No real accounts or emails.
+- **Gate**: friends enter the shared league password, then sign in with their
+  email — Supabase emails a 6-digit one-time code (new emails sign up
+  automatically). First-timers pick a name + avatar; returning players land
+  straight on their profile.
 - **Predictions**: for every match, pick the exact score, up to 3 goalscorers,
   and an optional "first goal half" bonus bet. Editable until kickoff.
 - **Side bets 🎰**: per match, optionally bet on both-teams-to-score,
@@ -75,11 +77,27 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
 The app talks to Supabase straight from the browser with `@supabase/supabase-js`
-and the publishable key — no server-side database connection. Row Level
-Security policies (see `supabase/migrations/`) give the anon role read/write
-access to the league tables; the league itself is gated by the shared
-password in the UI. The schema and policies are already applied to the live
-project (`worldcup-fantasy-league`), and the opening-week fixtures are seeded.
+and the publishable key — no server-side database connection. Players sign in
+with an email OTP code (Supabase Auth); Row Level Security policies (see
+`supabase/migrations/`) open the league tables to authenticated users only,
+and you can only edit your own profile and predictions. The schema and
+policies are already applied to the live project (`worldcup-fantasy-league`),
+and the opening-week fixtures are seeded.
+
+### Auth setup (one-time, Supabase dashboard)
+
+The email "Magic Link" template must include the OTP code. In
+**Auth → Email Templates → Magic Link**, make sure the body contains
+`{{ .Token }}`, e.g.:
+
+```html
+<h2>Your Laslo League code</h2>
+<p>Enter this code to sign in: <strong>{{ .Token }}</strong></p>
+```
+
+Supabase's built-in email service is heavily rate-limited (a few emails per
+hour) — fine for testing, but configure a custom SMTP provider
+(**Auth → SMTP Settings**) before the league goes live.
 
 Other env vars (optional): `NEXT_PUBLIC_LEAGUE_PASSWORD`,
 `NEXT_PUBLIC_ADMIN_PASSWORD`.

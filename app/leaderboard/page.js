@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSupabase } from '../../lib/supabase';
-import { getStoredUser, clearUser } from '../../lib/session';
+import { getSupabase, getSessionProfile } from '../../lib/supabase';
 import { WINNER_PICK_POINTS, TOP_SCORER_POINTS, computeTopScorers } from '../../lib/scoring';
 import { computeDailyBonuses, PERFECT_DAY_POINTS, DUEL_WIN_POINTS } from '../../lib/bonus';
 import Nav from '../Nav';
@@ -14,13 +13,13 @@ export default function Leaderboard() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const stored = getStoredUser();
-    if (!stored) {
-      router.replace('/');
-      return;
-    }
     (async () => {
       try {
+        const { profile } = await getSessionProfile();
+        if (!profile) {
+          router.replace('/');
+          return;
+        }
         const supabase = getSupabase();
         const [users, matches, preds] = await Promise.all([
           supabase.from('users').select('*'),
@@ -29,13 +28,7 @@ export default function Leaderboard() {
         ]);
         const err = users.error || matches.error || preds.error;
         if (err) throw err;
-        const me = users.data.find((u) => u.id === stored.id);
-        if (!me) {
-          clearUser();
-          router.replace('/');
-          return;
-        }
-        setData({ user: me, users: users.data, matches: matches.data, preds: preds.data });
+        setData({ user: profile, users: users.data, matches: matches.data, preds: preds.data });
       } catch (err) {
         setError(err.message || 'Could not load the leaderboard.');
       }
