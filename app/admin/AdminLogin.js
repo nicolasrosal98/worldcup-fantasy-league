@@ -1,22 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { ADMIN_PASSWORD, unlockAdmin } from '../../lib/session';
 
-export default function AdminLogin() {
-  const router = useRouter();
+export default function AdminLogin({ onUnlocked }) {
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
 
-  async function submit(e) {
+  function submit(e) {
     e.preventDefault();
-    const res = await fetch('/api/admin/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pw }),
-    });
-    if (res.ok) router.refresh();
-    else setErr('Wrong admin password.');
+    if (pw === ADMIN_PASSWORD) {
+      unlockAdmin();
+      onUnlocked();
+    } else {
+      setErr('Wrong admin password.');
+    }
   }
 
   return (

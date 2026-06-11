@@ -1,25 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { getSupabase } from '../../lib/supabase';
 
-export default function WinnerPick({ teams, current, currentTopScorer, locked }) {
-  const router = useRouter();
+export default function WinnerPick({ userId, teams, current, currentTopScorer, locked, onSaved }) {
   const [pick, setPick] = useState(current || '');
   const [topScorer, setTopScorer] = useState(currentTopScorer || '');
   const [msg, setMsg] = useState('');
 
   async function save() {
-    const res = await fetch('/api/winner', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...(pick ? { team: pick } : {}),
-        ...(topScorer.trim() ? { top_scorer: topScorer } : {}),
-      }),
-    });
-    setMsg(res.ok ? 'Picks saved ✔' : 'Could not save (picks lock at the knockouts).');
-    router.refresh();
+    const updates = {
+      ...(pick ? { winner_pick: pick.slice(0, 40) } : {}),
+      ...(topScorer.trim() ? { top_scorer_pick: topScorer.trim().slice(0, 40) } : {}),
+    };
+    const { error } = await getSupabase().from('users').update(updates).eq('id', userId);
+    setMsg(!error ? 'Picks saved ✔' : 'Could not save picks.');
+    onSaved?.();
   }
 
   return (

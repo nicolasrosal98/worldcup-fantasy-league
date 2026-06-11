@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { getSupabase } from '../lib/supabase';
 
 export default function Nav({ user }) {
   const router = useRouter();
   async function logout() {
-    await fetch('/api/logout', { method: 'POST' });
+    await getSupabase().auth.signOut();
     router.push('/');
   }
   return (
